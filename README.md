@@ -11,7 +11,7 @@ Built as a submission for the **Tool/Workflow Building** task ("Weekly IG Post G
 3. **Picks the single best article for lead-gen** — not just the newest one. A Gemini call reasons over all candidates and explains, in Bahasa Indonesia, why it picked the one it did (e.g. a policy change beats a generic "how to mop your floor" evergreen post).
 4. **Writes the caption** — Gemini, briefed as a Rumah123 social copywriter: casual Bahasa Indonesia, hook line, comment-bait CTA, `#Rumah123 #RumahUntukSemua` hashtag rule, natural brand mention.
 5. **Generates the image** — Gemini, briefed as a Rumah123 art director, invents a scenario tied to the article and writes an image prompt matching Rumah123's real ad style (moody navy-blue interior, warm lamp glow, one genuinely smiling subject holding a symbolic prop). The prompt is rendered via Pollinations.ai (free, keyless image generation).
-6. **Emails a human for approval** — n8n's built-in Send-and-Wait node, with real Approve/Reject buttons, the reasoning for why this article was picked, the caption, and the image.
+6. **Emails a human for approval** — an interactive form (not a one-click link, see BUILD_LOG.md for why that matters), with the reasoning for why this article was picked, the caption, and the image, and a Decision dropdown (Approve/Reject) that only resolves on a real form submission.
 7. **On approval**, publishes directly to Instagram via the Graph API (create media container → publish). On rejection or timeout, it stops — nothing goes live unreviewed.
 
 ## Architecture
@@ -35,9 +35,9 @@ flowchart TD
     H2 --> I[Pollinations: render image from brief]
     H1 --> J[Merge caption + image]
     I --> J
-    J --> K[Email human: Approve / Reject buttons]
-    K -->|Approved| L1[Create IG media container]
-    K -->|Rejected / timeout| M[Stop]
+    J --> K[Email human: Approve / Reject form]
+    K -->|Approve submitted| L1[Create IG media container]
+    K -->|Reject / timeout| M[Stop]
     L1 --> L2[Publish to Instagram]
 ```
 
@@ -66,7 +66,11 @@ flowchart TD
 3. Getting the Instagram token requires: an Instagram Business account, a linked Facebook Page, a Meta Developer App with the Instagram product's "Publish content" and "Access profile info" use cases enabled, and a Graph API Explorer token exchanged for a long-lived Page token. This part is entirely manual on Meta's side — see `BUILD_LOG.md` for the exact permission scopes that were actually required (Meta's docs undersell this).
 4. Activate the workflow.
 
-## Known limitations (see BUILD_LOG.md for the full story)
+## Fixed during testing (see BUILD_LOG.md for the full story)
+
+- **Approval bypass**: the first version used n8n's plain one-click Approve/Reject email links (a bare GET request). During live testing, one of these resolved itself ~60 seconds after the email was sent, with no human clicking anything, and published a real post. Root-caused and fixed by switching to n8n's `customForm` response type — the email now links to a real form with a Decision dropdown and a Submit button, which only resolves the workflow on an actual POST. Verified: an untouched test execution sat correctly in "waiting" for 2+ minutes with no auto-resolve, while a real human-submitted approval on a second execution went through end-to-end correctly.
+- **Hand/finger rendering**: the AI-generated images initially had visibly malformed hands and posture when the subject was shown gripping the symbolic prop (a known weakness of diffusion image models). Fixed by rewriting the image-brief prompt to always place the prop on a table/surface in frame instead of held in the subject's hands, keeping hands relaxed and out of focus. Before/after comparison is in `BUILD_LOG.md`.
+
+## Known limitations
 
 - The image is a clean AI photo only — no text/logo/CTA button is baked into the pixels (Pollinations can't reliably render small legible text). A production version would add a compositing step (n8n's built-in Edit Image node, or a hosted HTML-to-image service) to overlay the headline, CTA pill, and logo the way Rumah123's real ads do.
-- The approval email's one-click Approve/Reject links are plain GET links. During testing, one of these got triggered automatically within ~60 seconds of the email being sent, without a human clicking anything — publishing a post with no real review. This is documented in detail in `BUILD_LOG.md` along with the fix I'd apply.

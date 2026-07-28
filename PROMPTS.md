@@ -62,19 +62,20 @@ Gimana menurut kamu, aturan baru ini bikin pasar properti makin menarik gak nih?
 
 ## 3. Image brief prompt (Gemini) — art-director reasoning, dynamic subject per article
 
-This is the biggest departure from the original one-off brief. Instead of a fixed "couple on a terrace" scenario, Gemini reads the article and *invents* a scenario each time, while holding the visual style constant. The style anchor text below was rewritten after being shown 3 real Rumah123 ad posts (dark navy-blue studio lighting, warm lamp glow, one candid smiling subject, a symbolic prop, space reserved for a headline/CTA overlay) — my first version had guessed "bright outdoor lifestyle photography," which was visually wrong.
+This is the biggest departure from the original one-off brief. Instead of a fixed "couple on a terrace" scenario, Gemini reads the article and *invents* a scenario each time, while holding the visual style constant. The style anchor text below was rewritten after being shown 3 real Rumah123 ad posts (dark navy-blue studio lighting, warm lamp glow, one candid smiling subject, a symbolic prop, space reserved for a headline/CTA overlay) — my first version had guessed "bright outdoor lifestyle photography," which was visually wrong. It was also rewritten a second time after the first batch of images came back with visibly malformed hands whenever the subject was shown gripping the prop (a known weakness of diffusion image models) — see BUILD_LOG.md.
 
 ```
 ROLE: You are the art director for Rumah123, a Gen-Z focused techno-property brand in Indonesia and Singapore, briefing an image generation model for an Instagram feed post.
 
 STYLE ANCHOR (match this exactly, based on Rumah123's real ad campaigns):
 - Moody dark navy-blue indoor studio scene: a cozy living room or home interior blurred softly in the background (sofa, bookshelf, framed art, a warm glowing lamp), lit mostly by cool blue ambient light with warm golden lamp glow as accent
-- One single Indonesian or Singaporean adult, genuinely mid-laugh or warmly smiling, natural candid expression, looking at or interacting with a symbolic prop tied to the article theme (for example: a miniature architectural house model, a smartphone, documents, a magnifying glass, a small map) lit warmly so it glows against the dark background
-- Editorial advertising photography quality, shallow depth of field, subject sharp and background softly blurred
+- One single Indonesian or Singaporean adult, genuinely mid-laugh or warmly smiling, natural candid expression, looking at a symbolic prop tied to the article theme (for example: a miniature architectural house model, a smartphone, documents, a small map) resting on a table or surface in front of them, NOT held or gripped in their hands, since AI image models render hands and fingers unreliably when they are interacting closely with an object
+- Keep hands relaxed, loosely in lap or resting on the table edge, mostly out of frame or softly out of focus, never the visual focus of the shot
+- Editorial advertising photography quality, shallow depth of field, close crop on face and shoulders, subject sharp and background softly blurred
 - Composition: subject positioned center or center-right, leaving the top third and left side visually open/uncluttered for a headline text overlay to be added later, and the bottom edge open for a CTA button and hashtag to be added later
 - No embedded text, no logos, no buttons in the image itself, those are added in post-production
 
-TASK: Read the news article below and invent one specific symbolic prop and micro-scenario a Gen-Z Indonesian or Singaporean property audience would find aspirational or relatable, tying the prop to the article's theme. Then write one concise vivid image-generation prompt, three to five sentences, plain descriptive language, following the style anchor above exactly.
+TASK: Read the news article below and invent one specific symbolic prop and micro-scenario a Gen-Z Indonesian or Singaporean property audience would find aspirational or relatable, tying the prop to the article's theme. Then write one concise vivid image-generation prompt, three to five sentences, plain descriptive language, following the style anchor above exactly, always placing the prop on a surface rather than in the subject's hands.
 
 Article Title: {{article.title}}
 Article Summary: {{article.contentSnippet}}
@@ -82,11 +83,13 @@ Article Summary: {{article.contentSnippet}}
 Respond with ONLY the final image-generation prompt text, no preamble, no explanation, no quotes.
 ```
 
-**Real output**, for the same HDB article:
+**Real output**, for the same HDB article, run through the actual prompt above (not hand-edited):
 
 ```
-A young Singaporean adult in their mid-20s sits in a moody, dark navy-blue living room studio scene, warmly laughing with a candid expression as they hold a glowing miniature architectural model of an HDB apartment block in their hands. The environment is illuminated by a deep cool-blue ambient glow balanced by a warm golden accent light coming from a floor lamp and the glowing property model itself. Softly blurred in the background are a plush sofa, a wooden bookshelf, and framed art, with the subject positioned slightly to the right to keep the top third and left side visually open for headline copy. Shot in high-end editorial advertising photography with a shallow depth of field, keeping the subject perfectly sharp while ensuring the image contains no embedded text, logos, or graphical overlays.
+A stylish young Singaporean adult with a genuine, delighted laugh looks down at a miniature architectural model of a modern HDB resale flat resting on a dark coffee table in front of them. The scene is set in a moody, dark navy-blue living room studio with cool ambient lighting, subtly highlighted by the warm golden glow of a blurred table lamp and bookshelf in the background. Captured in editorial advertising photography style with a shallow depth of field, the close crop highlights the subject's expressive face while keeping their hands relaxed and mostly out of frame. Positioned on the center-right, the composition leaves the top third and left side visually open and uncluttered for future text overlays.
 ```
+
+This is the version rendered in `sample-output-image.jpg` in this repo.
 
 This prompt was rendered via Pollinations.ai — see `sample-output-image.jpg` in this repo for the actual result.
 

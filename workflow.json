@@ -213,7 +213,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ contents: [ { parts: [ { text: \"ROLE: You are the art director for Rumah123, a Gen-Z focused techno-property brand in Indonesia and Singapore, briefing an image generation model for an Instagram feed post.\\n\\nSTYLE ANCHOR (match this exactly, based on Rumah123's real ad campaigns):\\n- Moody dark navy-blue indoor studio scene: a cozy living room or home interior blurred softly in the background (sofa, bookshelf, framed art, a warm glowing lamp), lit mostly by cool blue ambient light with warm golden lamp glow as accent\\n- One single Indonesian or Singaporean adult, genuinely mid-laugh or warmly smiling, natural candid expression, looking at or interacting with a symbolic prop tied to the article theme (for example: a miniature architectural house model, a smartphone, documents, a magnifying glass, a small map) lit warmly so it glows against the dark background\\n- Editorial advertising photography quality, shallow depth of field, subject sharp and background softly blurred\\n- Composition: subject positioned center or center-right, leaving the top third and left side visually open/uncluttered for a headline text overlay to be added later, and the bottom edge open for a CTA button and hashtag to be added later\\n- No embedded text, no logos, no buttons in the image itself, those are added in post-production\\n\\nTASK: Read the news article below and invent one specific symbolic prop and micro-scenario a Gen-Z Indonesian or Singaporean property audience would find aspirational or relatable, tying the prop to the article's theme. Then write one concise vivid image-generation prompt, three to five sentences, plain descriptive language, following the style anchor above exactly.\\n\\nArticle Title: \" + $json.title + \"\\nArticle Summary: \" + ($json.contentSnippet || $json.content || \"\") + \"\\n\\nRespond with ONLY the final image-generation prompt text, no preamble, no explanation, no quotes.\" } ] } ] }) }}",
+        "jsonBody": "={{ JSON.stringify({ contents: [ { parts: [ { text: \"ROLE: You are the art director for Rumah123, a Gen-Z focused techno-property brand in Indonesia and Singapore, briefing an image generation model for an Instagram feed post.\\n\\nSTYLE ANCHOR (match this exactly, based on Rumah123's real ad campaigns):\\n- Moody dark navy-blue indoor studio scene: a cozy living room or home interior blurred softly in the background (sofa, bookshelf, framed art, a warm glowing lamp), lit mostly by cool blue ambient light with warm golden lamp glow as accent\\n- One single Indonesian or Singaporean adult, genuinely mid-laugh or warmly smiling, natural candid expression, looking at a symbolic prop tied to the article theme (for example: a miniature architectural house model, a smartphone, documents, a small map) resting on a table or surface in front of them, NOT held or gripped in their hands, since AI image models render hands and fingers unreliably when they are interacting closely with an object\\n- Keep hands relaxed, loosely in lap or resting on the table edge, mostly out of frame or softly out of focus, never the visual focus of the shot\\n- Editorial advertising photography quality, shallow depth of field, close crop on face and shoulders, subject sharp and background softly blurred\\n- Composition: subject positioned center or center-right, leaving the top third and left side visually open/uncluttered for a headline text overlay to be added later, and the bottom edge open for a CTA button and hashtag to be added later\\n- No embedded text, no logos, no buttons in the image itself, those are added in post-production\\n\\nTASK: Read the news article below and invent one specific symbolic prop and micro-scenario a Gen-Z Indonesian or Singaporean property audience would find aspirational or relatable, tying the prop to the article's theme. Then write one concise vivid image-generation prompt, three to five sentences, plain descriptive language, following the style anchor above exactly, always placing the prop on a surface rather than in the subject's hands.\\n\\nArticle Title: \" + $json.title + \"\\nArticle Summary: \" + ($json.contentSnippet || $json.content || \"\") + \"\\n\\nRespond with ONLY the final image-generation prompt text, no preamble, no explanation, no quotes.\" } ] } ] }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -266,12 +266,30 @@
         "toEmail": "adrantine@gmail.com",
         "subject": "=New Instagram post ready for approval: {{ $json.title }}",
         "message": "=Kenapa artikel ini dipilih: {{ $('Apply Selection').item.json._selectionReasoning }}\n\nCaption:\n\n{{ $node[\"Generate Caption (Gemini)\"].json.candidates[0].content.parts[0].text }}\n\nArticle: {{ $json.link }}\nImage: {{ $node[\"Build Image URL (Pollinations)\"].json.imageUrl }}",
-        "approvalOptions": {
-          "values": {
-            "approvalType": "double"
-          }
+        "responseType": "customForm",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Decision",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Approve"
+                  },
+                  {
+                    "option": "Reject"
+                  }
+                ]
+              }
+            }
+          ]
         },
-        "options": {}
+        "options": {
+          "responseFormTitle": "=Approve this Instagram post?",
+          "responseFormButtonLabel": "Submit Decision"
+        }
       },
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
@@ -300,12 +318,11 @@
           "conditions": [
             {
               "id": "b1b2c3d4-0000-4000-8000-000000000001",
-              "leftValue": "={{ $json.data.approved }}",
-              "rightValue": true,
+              "leftValue": "={{ $json.data.Decision }}",
+              "rightValue": "Approve",
               "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
+                "type": "string",
+                "operation": "equals"
               }
             }
           ],
