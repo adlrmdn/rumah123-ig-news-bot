@@ -1,0 +1,122 @@
+# Prompts and AI Usage
+
+Every prompt below is copy-pasted from the actual n8n node that sends it (the `jsonBody` field of the corresponding HTTP Request node in `workflow.json`), not reconstructed from memory. `{{article fields}}` shows where the runtime data gets substituted in.
+
+The original creative brief this was adapted from was a manual, one-off "art director" prompt written for a single hand-picked image (couple on a terrace, fixed scenario). The job here was to turn that into a **framework** that runs unattended against whatever article the news pipeline picks each run — same brand voice and visual rules, but the subject and hook change every time based on real news content, and a model decides upfront which article is even worth a post.
+
+## 1. Article selection prompt (Gemini) — picks the best lead-gen article, not just the newest
+
+```
+You are the content strategist for Rumah123, a property brand targeting Gen-Z homebuyers and investors in Jakarta and Singapore. Below is a list of property news articles from the last 7 days, each with an index number, publish date, title, and summary.
+
+Your task: pick the ONE article with the strongest potential to generate marketing leads on Instagram, meaning it should be timely, emotionally engaging or surprising, directly relevant to someone currently thinking about buying, financing, or investing in property in Jakarta or Singapore, and not a generic evergreen how-to guide.
+
+Candidates:
+{{numbered list of up to ~20 articles: index, ISO pubDate, title, summary}}
+
+Respond with ONLY a JSON object in this exact format, no markdown, no code fences: {"selectedIndex": <number>, "reasoning": "<one sentence reasoning in casual Bahasa Indonesia>"}
+```
+
+**Real output**, run against 20 real candidates pulled live from the 4 RSS feeds on 2026-07-28 (candidates included real news like an HDB policy change and a Knight Frank CEO resignation, alongside unrelated lifestyle filler like "Rumah123 (Indonesia)" feed's evergreen guides and a Detik Properti feed piece about the ruins of Troy):
+
+```json
+{"selectedIndex": 8, "reasoning": "Pencabutan aturan wait-out 15 bulan ini adalah kabar besar yang sangat relevan dan mendesak, berpotensi tinggi memicu konsultasi dan leads dari calon pembeli HDB resale."}
+```
+
+It correctly skipped the Troy-ruins trivia piece, a "Batman's real house is for sale" novelty piece, and several generic home-maintenance guides, and picked *"Government removes 15-month wait-out period for private property owners to buy HDB resale flats"* — a real policy change with direct buying-decision urgency.
+
+## 2. Caption prompt (Gemini) — casual Bahasa Indonesia, hook + CTA + hashtag rule + branding
+
+```
+You are the social media copywriter for Rumah123, a Gen-Z focused property brand in Indonesia and Singapore. Write an Instagram caption in easygoing, casual Bahasa Indonesia based on this property news article.
+
+STRUCTURE REQUIRED:
+1. Hook line (first 1-2 lines) that stops the scroll, tied to the news angle
+2. Body: explain the news in a few short relatable sentences, translate why it matters for someone thinking about buying or investing in property in Jakarta or Singapore
+3. Comment-bait CTA: end with a question inviting comments
+4. Hashtag rule: end with a hashtag block starting with #Rumah123 #RumahUntukSemua, then 5-8 more relevant hashtags mixing Indonesian and English
+5. Product branding: naturally mention Rumah123 at least once as the place to explore listings
+
+Article Title: {{article.title}}
+Article Summary: {{article.contentSnippet}}
+Article Link: {{article.link}}
+
+Respond with ONLY the caption text, no preamble, no markdown labels.
+```
+
+**Real output**, for the HDB wait-out-period article above:
+
+```
+Bye-bye aturan nunggu 15 bulan! Mau pindah dari kondominium privat ke flat HDB resale di Singapura sekarang bisa langsung gas! 🇸🇬🚀
+
+Pemerintah Singapura baru aja resmi ngehapus masa tunggu 15 bulan buat pemilik properti privat yang mau beli flat HDB resale.
+
+Artinya apa buat kamu? Pasar makin fleksibel banget! Buat yang mau downsizing, ganti strategi investasi, atau mau cash out aset, prosesnya jauh lebih cepet tanpa drama nunggu berbulan-bulan lagi. Gerakan pasar makin lincah dan banyak peluang properti baru yang terbuka lebar.
+
+Lagi nyari peluang investasi atau mau berburu hunian impian dari Singapura sampai Jakarta? Kamu bisa langsung kepoin dan eksplor ribuan opsi listing terbaik cuma di Rumah123!
+
+Gimana menurut kamu, aturan baru ini bikin pasar properti makin menarik gak nih? Drop pendapat kamu di kolom komentar, ya! 👇
+
+#Rumah123 #RumahUntukSemua #PropertyNews #InfoProperti #SingaporeProperty #HDBResale #InvestasiProperti #PropertyTrends #RealEstateSG
+```
+
+## 3. Image brief prompt (Gemini) — art-director reasoning, dynamic subject per article
+
+This is the biggest departure from the original one-off brief. Instead of a fixed "couple on a terrace" scenario, Gemini reads the article and *invents* a scenario each time, while holding the visual style constant. The style anchor text below was rewritten after being shown 3 real Rumah123 ad posts (dark navy-blue studio lighting, warm lamp glow, one candid smiling subject, a symbolic prop, space reserved for a headline/CTA overlay) — my first version had guessed "bright outdoor lifestyle photography," which was visually wrong.
+
+```
+ROLE: You are the art director for Rumah123, a Gen-Z focused techno-property brand in Indonesia and Singapore, briefing an image generation model for an Instagram feed post.
+
+STYLE ANCHOR (match this exactly, based on Rumah123's real ad campaigns):
+- Moody dark navy-blue indoor studio scene: a cozy living room or home interior blurred softly in the background (sofa, bookshelf, framed art, a warm glowing lamp), lit mostly by cool blue ambient light with warm golden lamp glow as accent
+- One single Indonesian or Singaporean adult, genuinely mid-laugh or warmly smiling, natural candid expression, looking at or interacting with a symbolic prop tied to the article theme (for example: a miniature architectural house model, a smartphone, documents, a magnifying glass, a small map) lit warmly so it glows against the dark background
+- Editorial advertising photography quality, shallow depth of field, subject sharp and background softly blurred
+- Composition: subject positioned center or center-right, leaving the top third and left side visually open/uncluttered for a headline text overlay to be added later, and the bottom edge open for a CTA button and hashtag to be added later
+- No embedded text, no logos, no buttons in the image itself, those are added in post-production
+
+TASK: Read the news article below and invent one specific symbolic prop and micro-scenario a Gen-Z Indonesian or Singaporean property audience would find aspirational or relatable, tying the prop to the article's theme. Then write one concise vivid image-generation prompt, three to five sentences, plain descriptive language, following the style anchor above exactly.
+
+Article Title: {{article.title}}
+Article Summary: {{article.contentSnippet}}
+
+Respond with ONLY the final image-generation prompt text, no preamble, no explanation, no quotes.
+```
+
+**Real output**, for the same HDB article:
+
+```
+A young Singaporean adult in their mid-20s sits in a moody, dark navy-blue living room studio scene, warmly laughing with a candid expression as they hold a glowing miniature architectural model of an HDB apartment block in their hands. The environment is illuminated by a deep cool-blue ambient glow balanced by a warm golden accent light coming from a floor lamp and the glowing property model itself. Softly blurred in the background are a plush sofa, a wooden bookshelf, and framed art, with the subject positioned slightly to the right to keep the top third and left side visually open for headline copy. Shot in high-end editorial advertising photography with a shallow depth of field, keeping the subject perfectly sharp while ensuring the image contains no embedded text, logos, or graphical overlays.
+```
+
+This prompt was rendered via Pollinations.ai — see `sample-output-image.jpg` in this repo for the actual result.
+
+## Original reference brief (for context on where the style rules came from)
+
+The constraints structure (CONSTRAINTS / ROLE / SUBJECT / REASONING / FEW-SHOT REFERENCE / OUTPUT sections) is adapted from an earlier one-off prompt written for a single manually-chosen image:
+
+```
+CONSTRAINTS:
+- Platform: Instagram | Digital Marketing Post | IG feed native | provide caption
+- Design System: [Rumah123's Instagram profile]
+- Style Anchor: [3 real Rumah123 post URLs]
+- Must include: [hook line, comment-bait CTA, hashtag rule, product branding]
+- Language: Easygoing casual Bahasa Indonesia
+
+ROLE: Art director for a Gen-Z focused techno-property brand, briefing engagement breakthrough feed image
+
+SUBJECT/TOPIC: Young Asian Gen-Z Couple, morning home terrace outdoor setting, natural simple forest scenery, depicting fulfilling life scenario, simple modern house and couple as main attention, minimal props / Describing a couple vibrant life after owning a house, engaging peer Gen-Z to start checking out their dream house types #Rumah123 #RumahUntukSemua
+
+REASONING (before finalizing):
+1. Focal Point = Couple face/expression, not the pose/activities mechanics - genuine and mid laugh calm, showcasing lively home as main central target
+2. Thumbnail test: single subject, uncluttered background - passes at small size
+3. Negative space: reserve one-third top reserved for caption text overlay and edge bottom for hook links, logo, slogan
+4. Palette: Follow style anchor template, make it more tailored for bright outdoor cozy vibes
+
+FEW-SHOT REFERENCE: assets on rumah123.com
+
+OUTPUT: Generate Instagram digital marketing image post and caption to generate leads
+1. IG feed post image with embed text contents and logos
+2. IG feed caption matching image post
+```
+
+The workflow's prompts keep the REASONING rules (focal point on genuine expression, thumbnail test, negative space, palette-from-style-anchor) and the required-elements list (hook, CTA, hashtag rule, branding), but replace the fixed SUBJECT/TOPIC with a per-article reasoning step, since the whole point of this workflow is that the subject can't be hand-picked — it has to follow whatever the news actually is that week.

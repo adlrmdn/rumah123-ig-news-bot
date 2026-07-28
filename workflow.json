@@ -1,0 +1,607 @@
+{
+  "name": "Property News -> Instagram Auto-Poster",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://www.99.co/singapore/insider/feed/"
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        50
+      ],
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "99.co Singapore RSS"
+    },
+    {
+      "parameters": {
+        "url": "https://www.edgeprop.sg/rss.xml"
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        220
+      ],
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "EdgeProp Singapore RSS"
+    },
+    {
+      "parameters": {
+        "url": "https://www.detik.com/properti/rss"
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        390
+      ],
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Detik Properti (Indonesia) RSS"
+    },
+    {
+      "parameters": {
+        "url": "https://www.rumah123.com/panduan-properti/feed/"
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        560
+      ],
+      "id": "a1b2c3d4-0017-4000-8000-000000000017",
+      "name": "Rumah123 (Indonesia) RSS"
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        500,
+        300
+      ],
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Merge Feeds"
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.seenLinks) staticData.seenLinks = [];\n\nconst seen = new Set(staticData.seenLinks);\nconst newItems = [];\n\nfor (const item of $input.all()) {\n  const link = item.json.link || item.json.guid;\n  if (link && !seen.has(link)) {\n    newItems.push(item);\n    seen.add(link);\n  }\n}\n\nstaticData.seenLinks = Array.from(seen).slice(-200);\n\nreturn newItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Dedupe New Articles"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = Date.now();\nconst sevenDaysMs = 7 * 24 * 60 * 60 * 1000;\nconst candidates = [];\n\nfor (const item of $input.all()) {\n  const pubDateRaw = item.json.isoDate || item.json.pubDate;\n  const pubDate = pubDateRaw ? new Date(pubDateRaw) : null;\n  if (pubDate && !isNaN(pubDate.getTime()) && (now - pubDate.getTime()) <= sevenDaysMs) {\n    candidates.push({\n      title: item.json.title,\n      summary: (item.json.contentSnippet || item.json.content || '').slice(0, 300),\n      link: item.json.link || item.json.guid,\n      pubDate: pubDate.toISOString(),\n      _full: item.json\n    });\n  }\n}\n\nif (candidates.length === 0) return [];\n\nconst summaryText = candidates.map((c, i) => '[' + i + '] (' + c.pubDate + ') ' + c.title + '\\n' + c.summary).join('\\n\\n');\n\nreturn [{ json: { candidatesSummary: summaryText, candidatesCount: candidates.length, candidatesRaw: candidates } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ],
+      "id": "a1b2c3d4-0019-4000-8000-000000000019",
+      "name": "Build Candidates Summary (Last 7 Days)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [ { parts: [ { text: \"You are the content strategist for Rumah123, a property brand targeting Gen-Z homebuyers and investors in Jakarta and Singapore. Below is a list of property news articles from the last 7 days, each with an index number, publish date, title, and summary.\\n\\nYour task: pick the ONE article with the strongest potential to generate marketing leads on Instagram, meaning it should be timely, emotionally engaging or surprising, directly relevant to someone currently thinking about buying, financing, or investing in property in Jakarta or Singapore, and not a generic evergreen how-to guide.\\n\\nCandidates:\\n\" + $json.candidatesSummary + \"\\n\\nRespond with ONLY a JSON object in this exact format, no markdown, no code fences: {\\\"selectedIndex\\\": <number>, \\\"reasoning\\\": \\\"<one sentence reasoning in casual Bahasa Indonesia>\\\"}\" } ] } ] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1125,
+        300
+      ],
+      "id": "a1b2c3d4-0020-4000-8000-000000000020",
+      "name": "Select Best Article (Gemini)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "yCNAIzFKknkwFdkg",
+          "name": "Gemini Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.candidates[0].content.parts[0].text.trim();\nconst cleaned = raw.replace(/^```json\\s*/i, '').replace(/^```\\s*/, '').replace(/```\\s*$/, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = { selectedIndex: 0, reasoning: 'Fallback: gagal parse hasil seleksi, pakai kandidat pertama.' };\n}\n\nconst candidatesRaw = $('Build Candidates Summary (Last 7 Days)').item.json.candidatesRaw;\nconst idx = (parsed.selectedIndex >= 0 && parsed.selectedIndex < candidatesRaw.length) ? parsed.selectedIndex : 0;\nconst chosen = { ...candidatesRaw[idx]._full };\nchosen._selectionReasoning = parsed.reasoning;\n\nreturn [{ json: chosen }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        300
+      ],
+      "id": "a1b2c3d4-0021-4000-8000-000000000021",
+      "name": "Apply Selection"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [ { parts: [ { text: \"You are the social media copywriter for Rumah123, a Gen-Z focused property brand in Indonesia and Singapore. Write an Instagram caption in easygoing, casual Bahasa Indonesia based on this property news article.\\n\\nSTRUCTURE REQUIRED:\\n1. Hook line (first 1-2 lines) that stops the scroll, tied to the news angle\\n2. Body: explain the news in a few short relatable sentences, translate why it matters for someone thinking about buying or investing in property in Jakarta or Singapore\\n3. Comment-bait CTA: end with a question inviting comments\\n4. Hashtag rule: end with a hashtag block starting with #Rumah123 #RumahUntukSemua, then 5-8 more relevant hashtags mixing Indonesian and English\\n5. Product branding: naturally mention Rumah123 at least once as the place to explore listings\\n\\nArticle Title: \" + $json.title + \"\\nArticle Summary: \" + ($json.contentSnippet || $json.content || \"\") + \"\\nArticle Link: \" + $json.link + \"\\n\\nRespond with ONLY the caption text, no preamble, no markdown labels.\" } ] } ] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        200
+      ],
+      "id": "a1b2c3d4-0008-4000-8000-000000000008",
+      "name": "Generate Caption (Gemini)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "yCNAIzFKknkwFdkg",
+          "name": "Gemini Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [ { parts: [ { text: \"ROLE: You are the art director for Rumah123, a Gen-Z focused techno-property brand in Indonesia and Singapore, briefing an image generation model for an Instagram feed post.\\n\\nSTYLE ANCHOR (match this exactly, based on Rumah123's real ad campaigns):\\n- Moody dark navy-blue indoor studio scene: a cozy living room or home interior blurred softly in the background (sofa, bookshelf, framed art, a warm glowing lamp), lit mostly by cool blue ambient light with warm golden lamp glow as accent\\n- One single Indonesian or Singaporean adult, genuinely mid-laugh or warmly smiling, natural candid expression, looking at or interacting with a symbolic prop tied to the article theme (for example: a miniature architectural house model, a smartphone, documents, a magnifying glass, a small map) lit warmly so it glows against the dark background\\n- Editorial advertising photography quality, shallow depth of field, subject sharp and background softly blurred\\n- Composition: subject positioned center or center-right, leaving the top third and left side visually open/uncluttered for a headline text overlay to be added later, and the bottom edge open for a CTA button and hashtag to be added later\\n- No embedded text, no logos, no buttons in the image itself, those are added in post-production\\n\\nTASK: Read the news article below and invent one specific symbolic prop and micro-scenario a Gen-Z Indonesian or Singaporean property audience would find aspirational or relatable, tying the prop to the article's theme. Then write one concise vivid image-generation prompt, three to five sentences, plain descriptive language, following the style anchor above exactly.\\n\\nArticle Title: \" + $json.title + \"\\nArticle Summary: \" + ($json.contentSnippet || $json.content || \"\") + \"\\n\\nRespond with ONLY the final image-generation prompt text, no preamble, no explanation, no quotes.\" } ] } ] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        450
+      ],
+      "id": "a1b2c3d4-0018-4000-8000-000000000018",
+      "name": "Generate Image Brief (Gemini)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "yCNAIzFKknkwFdkg",
+          "name": "Gemini Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const brief = $json.candidates[0].content.parts[0].text.trim();\nconst imageUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(brief) + '?width=1024&height=1024&nologo=true';\nreturn [{ json: { imageUrl, imageBrief: brief } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1750,
+        450
+      ],
+      "id": "a1b2c3d4-0009-4000-8000-000000000009",
+      "name": "Build Image URL (Pollinations)"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 2
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2000,
+        325
+      ],
+      "id": "a1b2c3d4-0010-4000-8000-000000000010",
+      "name": "Merge Caption + Image"
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "fromEmail": "adilramadhan.cp@gmail.com",
+        "toEmail": "adrantine@gmail.com",
+        "subject": "=New Instagram post ready for approval: {{ $json.title }}",
+        "message": "=Kenapa artikel ini dipilih: {{ $('Apply Selection').item.json._selectionReasoning }}\n\nCaption:\n\n{{ $node[\"Generate Caption (Gemini)\"].json.candidates[0].content.parts[0].text }}\n\nArticle: {{ $json.link }}\nImage: {{ $node[\"Build Image URL (Pollinations)\"].json.imageUrl }}",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2250,
+        325
+      ],
+      "id": "a1b2c3d4-0011-4000-8000-000000000011",
+      "name": "Email Approval (Send and Wait)",
+      "credentials": {
+        "smtp": {
+          "id": "3JywnBOzY2kbjF2J",
+          "name": "Gmail SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b1b2c3d4-0000-4000-8000-000000000001",
+              "leftValue": "={{ $json.data.approved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2500,
+        325
+      ],
+      "id": "a1b2c3d4-0012-4000-8000-000000000012",
+      "name": "Approved?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/17841444168869308/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "image_url",
+              "value": "={{ $node[\"Build Image URL (Pollinations)\"].json.imageUrl }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $node[\"Generate Caption (Gemini)\"].json.candidates[0].content.parts[0].text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2750,
+        200
+      ],
+      "id": "a1b2c3d4-0013-4000-8000-000000000013",
+      "name": "Create IG Media Container",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bOu8mBvJjoaH7rhc",
+          "name": "Instagram Page Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/17841444168869308/media_publish",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3000,
+        200
+      ],
+      "id": "a1b2c3d4-0014-4000-8000-000000000014",
+      "name": "Publish to Instagram",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bOu8mBvJjoaH7rhc",
+          "name": "Instagram Page Token"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "99.co Singapore RSS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "EdgeProp Singapore RSS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Detik Properti (Indonesia) RSS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Rumah123 (Indonesia) RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "99.co Singapore RSS": {
+      "main": [
+        [
+          {
+            "node": "Merge Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EdgeProp Singapore RSS": {
+      "main": [
+        [
+          {
+            "node": "Merge Feeds",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Detik Properti (Indonesia) RSS": {
+      "main": [
+        [
+          {
+            "node": "Merge Feeds",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Rumah123 (Indonesia) RSS": {
+      "main": [
+        [
+          {
+            "node": "Merge Feeds",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge Feeds": {
+      "main": [
+        [
+          {
+            "node": "Dedupe New Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe New Articles": {
+      "main": [
+        [
+          {
+            "node": "Build Candidates Summary (Last 7 Days)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Candidates Summary (Last 7 Days)": {
+      "main": [
+        [
+          {
+            "node": "Select Best Article (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Best Article (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Apply Selection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Selection": {
+      "main": [
+        [
+          {
+            "node": "Generate Caption (Gemini)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Image Brief (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Caption (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Merge Caption + Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Image Brief (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Build Image URL (Pollinations)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Image URL (Pollinations)": {
+      "main": [
+        [
+          {
+            "node": "Merge Caption + Image",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Caption + Image": {
+      "main": [
+        [
+          {
+            "node": "Email Approval (Send and Wait)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Approval (Send and Wait)": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Create IG Media Container",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Create IG Media Container": {
+      "main": [
+        [
+          {
+            "node": "Publish to Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
