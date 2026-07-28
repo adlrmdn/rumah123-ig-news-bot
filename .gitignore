@@ -1,0 +1,18 @@
+# Credentials and secrets
+.env
+.env.*
+*.key
+*.pem
+credentials.json
+secrets.json
+*_token.txt
+*_token.json
+apikey*
+api_key*
+
+# n8n local exports that may embed resolved credential data
+n8n_credentials*.json
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
