@@ -6,8 +6,13 @@
         "rule": {
           "interval": [
             {
-              "field": "hours",
-              "hoursInterval": 1
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
             }
           ]
         }
@@ -213,7 +218,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ contents: [ { parts: [ { text: \"ROLE: You are the art director for Rumah123, a Gen-Z focused techno-property brand in Indonesia and Singapore, briefing an image generation model for an Instagram feed post.\\n\\nSTYLE ANCHOR (match this exactly, based on Rumah123's real ad campaigns):\\n- Moody dark navy-blue indoor studio scene: a cozy living room or home interior blurred softly in the background (sofa, bookshelf, framed art, a warm glowing lamp), lit mostly by cool blue ambient light with warm golden lamp glow as accent\\n- One single Indonesian or Singaporean adult, genuinely mid-laugh or warmly smiling, natural candid expression, looking at a symbolic prop tied to the article theme (for example: a miniature architectural house model, a smartphone, documents, a small map) resting on a table or surface in front of them, NOT held or gripped in their hands, since AI image models render hands and fingers unreliably when they are interacting closely with an object\\n- Keep hands relaxed, loosely in lap or resting on the table edge, mostly out of frame or softly out of focus, never the visual focus of the shot\\n- Editorial advertising photography quality, shallow depth of field, close crop on face and shoulders, subject sharp and background softly blurred\\n- Composition: subject positioned center or center-right, leaving the top third and left side visually open/uncluttered for a headline text overlay to be added later, and the bottom edge open for a CTA button and hashtag to be added later\\n- No embedded text, no logos, no buttons in the image itself, those are added in post-production\\n\\nTASK: Read the news article below and invent one specific symbolic prop and micro-scenario a Gen-Z Indonesian or Singaporean property audience would find aspirational or relatable, tying the prop to the article's theme. Then write one concise vivid image-generation prompt, three to five sentences, plain descriptive language, following the style anchor above exactly, always placing the prop on a surface rather than in the subject's hands.\\n\\nArticle Title: \" + $json.title + \"\\nArticle Summary: \" + ($json.contentSnippet || $json.content || \"\") + \"\\n\\nRespond with ONLY the final image-generation prompt text, no preamble, no explanation, no quotes.\" } ] } ] }) }}",
+        "jsonBody": "={{ JSON.stringify({ contents: [ { parts: [ { text: \"ROLE: You are the art director for Rumah123, a Gen-Z focused techno-property brand in Indonesia and Singapore, briefing an image generation model for an Instagram feed post.\\n\\nSTYLE ANCHOR (match this exactly, based on Rumah123's real ad campaigns):\\n- Moody dark navy-blue indoor studio scene: a cozy living room or home interior blurred softly in the background (sofa, bookshelf, framed art, a warm glowing lamp), lit mostly by cool blue ambient light with warm golden lamp glow as accent\\n- One single Indonesian or Singaporean adult captured mid-genuine laugh: mouth open, eyes crinkled with real joy, an unmistakably happy candid expression, not a subtle smirk or closed-mouth smile\\n- Hands and fingers must NOT be visible anywhere in the frame: crop the shot at the chest or upper torso, well above where hands would be, so there is no risk of malformed hands or fingers appearing\\n- Editorial advertising photography quality, shallow depth of field, close crop on face and upper shoulders only, subject sharp and background softly blurred\\n- Composition: subject positioned center-right, taking up no more than the bottom two-thirds of the frame, leaving the entire top third and left side completely empty and uncluttered for a headline text overlay to be added later\\n- No embedded text, no logos, no buttons in the image itself, those are added in post-production\\n\\nVARY THE PROP EVERY TIME, do not default to the same object: pick whichever concrete object best matches THIS SPECIFIC article, drawing from a wide range depending on the topic, for example: a physical house or building only if the article is literally about one specific property; a smartphone or tablet screen showing a chart or listing for market-data or price-trend articles; a stack of documents, a house key, a calculator, a laptop, a newspaper, a pair of keys on a ring, a stock ticker on a screen, a handshake gesture, a moving box, a paint swatch, a set of blueprints, or something else entirely you invent that fits. Never repeat the exact same prop and pose combination used for a different article's topic. A miniature architectural house model should be the exception, used only when the article is specifically about a single named building or development, not the default choice.\\n\\nTASK: Read the news article below and invent one specific prop and micro-scenario a Gen-Z Indonesian or Singaporean property audience would find aspirational or relatable, tying the prop tightly and specifically to THIS article's actual subject matter (policy, market data, a company, a person, a building), not a generic property theme. Then write one concise vivid image-generation prompt, three to five sentences, plain descriptive language, following the style anchor above exactly, with NO hands or fingers visible in frame.\\n\\nArticle Title: \" + $json.title + \"\\nArticle Summary: \" + ($json.contentSnippet || $json.content || \"\") + \"\\n\\nRespond with ONLY the final image-generation prompt text, no preamble, no explanation, no quotes.\" } ] } ] }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -341,6 +346,20 @@
     },
     {
       "parameters": {
+        "resume": "specificTime",
+        "dateTime": "={{ $now.set({ hour: 17, minute: 0, second: 0, millisecond: 0 }).toISO() }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2750,
+        325
+      ],
+      "id": "a1b2c3d4-0022-4000-8000-000000000022",
+      "name": "Wait Until 5 PM"
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://graph.facebook.com/v21.0/17841444168869308/media",
         "authentication": "genericCredentialType",
@@ -363,7 +382,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2750,
+        3000,
         200
       ],
       "id": "a1b2c3d4-0013-4000-8000-000000000013",
@@ -395,7 +414,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3000,
+        3250,
         200
       ],
       "id": "a1b2c3d4-0014-4000-8000-000000000014",
@@ -598,12 +617,23 @@
       "main": [
         [
           {
-            "node": "Create IG Media Container",
+            "node": "Wait Until 5 PM",
             "type": "main",
             "index": 0
           }
         ],
         []
+      ]
+    },
+    "Wait Until 5 PM": {
+      "main": [
+        [
+          {
+            "node": "Create IG Media Container",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Create IG Media Container": {

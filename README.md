@@ -6,19 +6,19 @@ Built as a submission for the **Tool/Workflow Building** task ("Weekly IG Post G
 
 ## What it does, end to end
 
-1. **Pulls property news** every hour from 4 RSS feeds (2 Singapore, 2 Indonesia).
+1. **Pulls property news** every Monday 9 AM from 4 RSS feeds (2 Singapore, 2 Indonesia).
 2. **Filters to the last 7 days** and **dedupes** against articles already posted (so nothing repeats).
 3. **Picks the single best article for lead-gen** — not just the newest one. A Gemini call reasons over all candidates and explains, in Bahasa Indonesia, why it picked the one it did (e.g. a policy change beats a generic "how to mop your floor" evergreen post).
 4. **Writes the caption** — Gemini, briefed as a Rumah123 social copywriter: casual Bahasa Indonesia, hook line, comment-bait CTA, `#Rumah123 #RumahUntukSemua` hashtag rule, natural brand mention.
-5. **Generates the image** — Gemini, briefed as a Rumah123 art director, invents a scenario tied to the article and writes an image prompt matching Rumah123's real ad style (moody navy-blue interior, warm lamp glow, one genuinely smiling subject holding a symbolic prop). The prompt is rendered via Pollinations.ai (free, keyless image generation).
-6. **Emails a human for approval** — an interactive form (not a one-click link, see BUILD_LOG.md for why that matters), with the reasoning for why this article was picked, the caption, and the image, and a Decision dropdown (Approve/Reject) that only resolves on a real form submission.
-7. **On approval**, publishes directly to Instagram via the Graph API (create media container → publish). On rejection or timeout, it stops — nothing goes live unreviewed.
+5. **Generates the image** — Gemini, briefed as a Rumah123 art director, invents a scenario *and a concrete prop specific to that article's actual subject* (a policy story gets documents or a calculator, a market-data story gets a phone showing a chart, a named-building story gets a model of that building — never the same prop twice regardless of topic), matching Rumah123's real ad style (moody navy-blue interior, warm lamp glow, one genuinely laughing subject). The prompt is rendered via Pollinations.ai (free, keyless image generation).
+6. **Emails a human for approval at 9 AM** — an interactive form (not a one-click link, see BUILD_LOG.md for why that matters), with the reasoning for why this article was picked, the caption, and the image, and a Decision dropdown (Approve/Reject) that only resolves on a real form submission.
+7. **On approval, waits until 5 PM the same day**, then publishes to Instagram via the Graph API (create media container → publish). This gives reviewers an 8-hour window between seeing the draft and it going live. On rejection or timeout, it stops — nothing goes live unreviewed.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    A[Schedule Trigger - hourly] --> B1[99.co Singapore RSS]
+    A[Schedule Trigger - weekly, Mon 9am] --> B1[99.co Singapore RSS]
     A --> B2[EdgeProp Singapore RSS]
     A --> B3[Detik Properti Indonesia RSS]
     A --> B4[Rumah123 Indonesia RSS]
@@ -31,13 +31,14 @@ flowchart TD
     E --> F[Gemini: pick best article for lead-gen + reasoning]
     F --> G[Apply selection]
     G --> H1[Gemini: write branded IG caption]
-    G --> H2[Gemini: write art-director image brief]
+    G --> H2[Gemini: write art-director image brief, article-specific prop]
     H2 --> I[Pollinations: render image from brief]
     H1 --> J[Merge caption + image]
     I --> J
-    J --> K[Email human: Approve / Reject form]
-    K -->|Approve submitted| L1[Create IG media container]
+    J --> K[Email human at 9am: Approve / Reject form]
+    K -->|Approve submitted| W[Wait until 5pm same day]
     K -->|Reject / timeout| M[Stop]
+    W --> L1[Create IG media container]
     L1 --> L2[Publish to Instagram]
 ```
 
@@ -66,11 +67,9 @@ flowchart TD
 3. Getting the Instagram token requires: an Instagram Business account, a linked Facebook Page, a Meta Developer App with the Instagram product's "Publish content" and "Access profile info" use cases enabled, and a Graph API Explorer token exchanged for a long-lived Page token. This part is entirely manual on Meta's side — see `BUILD_LOG.md` for the exact permission scopes that were actually required (Meta's docs undersell this).
 4. Activate the workflow.
 
-## Fixed during testing (see BUILD_LOG.md for the full story)
-
-- **Approval bypass**: the first version used n8n's plain one-click Approve/Reject email links (a bare GET request). During live testing, one of these resolved itself ~60 seconds after the email was sent, with no human clicking anything, and published a real post. Root-caused and fixed by switching to n8n's `customForm` response type — the email now links to a real form with a Decision dropdown and a Submit button, which only resolves the workflow on an actual POST. Verified: an untouched test execution sat correctly in "waiting" for 2+ minutes with no auto-resolve, while a real human-submitted approval on a second execution went through end-to-end correctly.
-- **Hand/finger rendering**: the AI-generated images initially had visibly malformed hands and posture when the subject was shown gripping the symbolic prop (a known weakness of diffusion image models). Fixed by rewriting the image-brief prompt to always place the prop on a table/surface in frame instead of held in the subject's hands, keeping hands relaxed and out of focus. Before/after comparison is in `BUILD_LOG.md`.
+See `BUILD_LOG.md` for what broke during testing and how it was fixed (an approval-security bug, image quality issues, and a couple of n8n/API quirks).
 
 ## Known limitations
 
-- The image is a clean AI photo only — no text/logo/CTA button is baked into the pixels (Pollinations can't reliably render small legible text). A production version would add a compositing step (n8n's built-in Edit Image node, or a hosted HTML-to-image service) to overlay the headline, CTA pill, and logo the way Rumah123's real ads do.
+- No text/logo/CTA is baked into the image itself — Pollinations can't reliably render small legible text. A production version would composite these on top with n8n's built-in Edit Image node.
+- Hand/finger rendering quality still varies run to run — inherent to the free image model.
